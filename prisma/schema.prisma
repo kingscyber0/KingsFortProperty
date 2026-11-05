@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StaffRole {
+  SUPER_ADMIN
+  MANAGER
+  HR
+  ACCOUNTANT
+  PROPERTY_AGENT
+  VIEWER
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum ApprovalStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum PropertyAvailability {
+  AVAILABLE
+  RESERVED
+  RENTED
+  SOLD
+  UNAVAILABLE
+}
+
+enum TransactionType {
+  RENT
+  SALE
+  BOTH
+}
+
+enum InspectionStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum LeadStatus {
+  NOW
+  CONTACTED
+  INTERESTED
+  INSPECTION_REQUESTED
+  FOLLOW_UP_DUE
+  NEGOTIATING
+  CLOSED
+  NOT_INTERESTED
+}
+
+enum TenantStatus {
+  ACTIVE
+  FORMER
+  PROSPECT
+}
+
+model Company {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  email String
+  phone String?
+  address String?
+  logoUrl String?
+  timezone String @default("Africa/Lagos")
+  currency String @default("NGN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users User[]
+  invitations Invitation[]
+  subscription Subscription?
+  properties Property[]
+  propertyOwners PropertyOwner[]
+  propertyStatusHistory PropertyStatusHistory[]
+  leads Lead[]
+  tenants Tenant[]
+  inspections Inspection[]
+  rentPayments RentPayment[]
+  auditLogs AuditLog[]
+}
+model User {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  name String
+  email String
+  passwordHash String
+  phone String?
+  department String?
+  jobTitle String?
+  role StaffRole @default(VIEWER)
+  active Boolean @default(true)
+  sessionVersion Int @default(0)
+  emailVerifiedAt DateTime?
+  onboardingCompletedAt DateTime?
+  lastLoginAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  auditLogs AuditLog[]
+  propertiesCreated Property[] @relation("PropertyCreator")
+  propertyStatusChanges PropertyStatusHistory[] @relation("StatusChangedBy")
+  leadsAssigned Lead[] @relation("LeadAssignee")
+  inspectionsAssigned Inspection[] @relation("InspectionAssignee")
+  @@unique([companyId,email])
+  @@unique([companyId,id])
+  @@index([companyId,role])
+}
+model Invitation {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  email String
+  role StaffRole
+  tokenHash String @unique
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([companyId,email])
+}
+model Subscription {
+  id String @id @default(cuid())
+  companyId String @unique
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  planCode String @default("STANDARD_MONTHLY")
+  status SubscriptionStatus @default(TRIALING)
+  amountKobo Int?
+  currency String @default("NGN")
+  provider String @default("PAYSTACK")
+  providerCustomerId String?
+  providerSubscriptionId String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Property {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  propertyCode String
+  name String
+  propertyType String
+  location String
+  fullAddress String
+  transactionType TransactionType
+  price Decimal @db.Decimal(18,2)
+  bedrooms Int?
+  bathrooms Int?
+  furnishingStatus String?
+  availability PropertyAvailability @default(AVAILABLE)
+  approval ApprovalStatus @default(PENDING)
+  description String?
+  suspendedAt DateTime?
+  suspensionReason String?
+  createdById String
+  createdBy User @relation("PropertyCreator", fields:[companyId,createdById], references:[companyId,id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  owners PropertyOwner[]
+  statusHistory PropertyStatusHistory[]
+  inspections Inspection[]
+  @@unique([companyId,id])
+  @@unique([companyId,propertyCode])
+  @@index([companyId,approval,availability])
+  @@index([companyId,location])
+}
+model PropertyOwner {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  propertyId String
+  property Property @relation(fields:[companyId,propertyId], references:[companyId,id], onDelete:Cascade)
+  name String
+  phone String
+  email String?
+  isPrimary Boolean @default(false)
+}
+model PropertyStatusHistory {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  propertyId String
+  property Property @relation(fields:[companyId,propertyId], references:[companyId,id], onDelete:Cascade)
+  oldStatus String?
+  newStatus String
+  reason String?
+  changedById String
+  changedBy User @relation("StatusChangedBy", fields:[companyId,changedById], references:[companyId,id], onDelete:Restrict)
+  changedAt DateTime @default(now())
+  @@index([companyId,propertyId])
+}
+model Lead {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  name String
+  email String?
+  phone String
+  requirement String?
+  budget Decimal? @db.Decimal(18,2)
+  status LeadStatus @default(NOW)
+  assignedToId String?
+  assignedTo User? @relation("LeadAssignee", fields:[companyId,assignedToId], references:[companyId,id], onDelete:NoAction)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([companyId,status])
+  @@index([companyId,assignedToId])
+}
+model Tenant {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  name String
+  email String?
+  phone String
+  propertyDescription String?
+  status TenantStatus @default(ACTIVE)
+  leaseStart DateTime?
+  leaseEnd DateTime?
+  rentAmount Decimal? @db.Decimal(18,2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rentPayments RentPayment[]
+  @@unique([companyId,id])
+  @@index([companyId,status])
+}
+model Inspection {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  propertyId String
+  property Property @relation(fields:[companyId,propertyId], references:[companyId,id], onDelete:Cascade)
+  clientName String
+  clientPhone String
+  assignedAgentId String?
+  assignedAgent User? @relation("InspectionAssignee", fields:[companyId,assignedAgentId], references:[companyId,id], onDelete:NoAction)
+  scheduledAt DateTime
+  actualAt DateTime?
+  status InspectionStatus @default(SCHEDULED)
+  outcome String?
+  feedback String?
+  nextAction String?
+  createdAt DateTime @default(now())
+  @@index([companyId,scheduledAt])
+  @@index([companyId,assignedAgentId])
+}
+model RentPayment {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  tenantId String
+  tenant Tenant @relation(fields:[companyId,tenantId], references:[companyId,id], onDelete:Cascade)
+  periodStart DateTime
+  periodEnd DateTime
+  amount Decimal @db.Decimal(18,2)
+  amountPaid Decimal @default(0) @db.Decimal(18,2)
+  dueDate DateTime
+  paidAt DateTime?
+  reference String?
+  notes String?
+  createdAt DateTime @default(now())
+  @@index([companyId,dueDate])
+  @@index([companyId,tenantId])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  userId String?
+  user User? @relation(fields:[companyId,userId], references:[companyId,id], onDelete:NoAction)
+  action String
+  entityType String
+  entityId String?
+  metadata Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  @@index([companyId,createdAt])
+}

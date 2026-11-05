@@ -1,0 +1,25 @@
+{
+  "name": "kingsfortproperty-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-company real-estate management desktop SaaS",
+  "workspaces": ["apps/desktop", "apps/api", "packages/shared"],
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:api\" \"npm:dev:desktop\"",
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev:desktop": "npm --workspace apps/desktop run dev",
+    "build": "npm run build:shared && npm run build:api && npm run build:desktop",
+    "build:shared": "npm --workspace packages/shared run build",
+    "build:api": "npm --workspace apps/api run build",
+    "build:desktop": "npm --workspace apps/desktop run build",
+    "test": "npm run build:shared && npm --workspace apps/api test && npm --workspace apps/api run test:contracts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "package:win": "npm --workspace apps/desktop run package:win"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prisma": "^6.19.0",
+    "typescript": "^5.9.3"
+  }
+}
