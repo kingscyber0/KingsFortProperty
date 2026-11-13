@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { ZodError } from 'zod';
 import { authRouter } from './routes/auth';
 import { workspaceRouter } from './routes/workspace';
+import { propertiesRouter } from './routes/properties';
 import { invitationAcceptanceRouter } from './routes/invitationAcceptance';
 import { prisma } from './db';
 const app=express();
@@ -13,6 +14,7 @@ app.disable('x-powered-by'); app.use(helmet()); const allowedOrigins=(process.en
 app.use('/api/auth',rateLimit({windowMs:15*60*1000,limit:20,standardHeaders:true,legacyHeaders:false}),authRouter);
 app.use('/api/workspace',invitationAcceptanceRouter);
 app.use('/api/workspace',workspaceRouter);
+app.use('/api/workspace',propertiesRouter);
 app.get('/api/health',(_req,res)=>res.json({ok:true,service:'KingsFortProperty API',timestamp:new Date().toISOString()}));
 app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{if(err instanceof ZodError)return res.status(400).json({error:'Please check the information entered.',details:err.issues.map(i=>({field:i.path.join('.'),message:i.message}))});console.error(err);return res.status(500).json({error:'An unexpected server error occurred.'});});
 const port=Number(process.env.PORT||4310);
