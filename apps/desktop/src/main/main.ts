@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, protocol, net } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { resolveRendererRequestPath } from './protocol-path';
 protocol.registerSchemesAsPrivileged([{scheme:'kingsfort',privileges:{standard:true,secure:true,supportFetchAPI:true,corsEnabled:true}}]);
 let mainWindow:BrowserWindow|undefined;
 function createWindow(){
@@ -9,5 +10,5 @@ function createWindow(){
  mainWindow.webContents.setWindowOpenHandler(({url})=>{if(url.startsWith('https://'))void shell.openExternal(url);return {action:'deny'};});
  if(process.env.VITE_DEV_SERVER_URL)void mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);else void mainWindow.loadURL('kingsfort://app/index.html');
 }
-app.whenReady().then(()=>{protocol.handle('kingsfort',request=>{const url=new URL(request.url);const requestedPath=decodeURIComponent(url.pathname);const safePath=path.normalize(path.join(__dirname,'../renderer',requestedPath));return net.fetch(pathToFileURL(safePath).toString());});createWindow();app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});});
+app.whenReady().then(()=>{const rendererRoot=path.join(__dirname,'../renderer');protocol.handle('kingsfort',async request=>{const safePath=await resolveRendererRequestPath(request.url,rendererRoot);if(!safePath)return new Response('Not found',{status:404});return net.fetch(pathToFileURL(safePath).toString());});createWindow();app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});});
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});
